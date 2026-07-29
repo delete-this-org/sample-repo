@@ -1,0 +1,33 @@
+name: pr
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  # ── LOCAL: build + test stay in the repo (repo-specific commands) ──
+  # They use the shared COMPOSITE ACTION for setup, but own their build/test
+  # invocation so repos that diverge aren't forced through shared inputs.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: YOUR_ORG/.github/actions/setup-dotnet@main   # composite: SDK + restore
+        with: { dotnet-version: '8.0.x' }                  # 🔧 CUSTOMIZE FOR REAL FIRM
+      - run: dotnet build --no-restore -c Release
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: YOUR_ORG/.github/actions/setup-dotnet@main
+        with: { dotnet-version: '8.0.x' }
+      - run: dotnet test --filter Category=Unit --logger trx
+
+  # ── CENTRALIZED: policy/quality gates called from YOUR_ORG/.github ──
+  branch-name:
+    uses: YOUR_ORG/.github/.github/workflows/reusable-branch-name.yml@main
+
+  ai-review:
+    uses: YOUR_ORG/.github/.github/workflows/reusable-ai-review.yml@main
+    secrets: inherit   # passes ANTHROPIC_API_KEY (repo or org secret) to the gate
