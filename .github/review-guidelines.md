@@ -5,13 +5,14 @@ these rules; call out blocking issues explicitly and separately from suggestions
 
 ## About this service
 
-<!-- Customize for the repo -->
+🔧 CUSTOMIZE FOR REAL FIRM
 
 - Trunk `main`, squash-only, linear history. Conventional Commit PR titles.
 
 ## Blocking — request changes if any apply
 
- <!-- Consider lines below only as example, customize it for the real context -->
+  🔧 CUSTOMIZE FOR REAL FIRM
+  Consider lines below only as example, customize it for the real context
 
 - **Money & correctness:** monetary values use `decimal`, never `double`/`float`.
   Rounding is explicit. No silent currency assumptions.
@@ -29,7 +30,6 @@ these rules; call out blocking issues explicitly and separately from suggestions
   or renaming a column in the same deploy that ships code using it).
 - **Tests:** new business logic has unit tests; a bug fix includes a test that
 fails without the fix.
-<!-- Consider lines above as example -->
 
 ## Non-blocking — leave as suggestions
 
