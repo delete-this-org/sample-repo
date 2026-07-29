@@ -1,0 +1,7 @@
+# Default owners for everything
+*                     @org/reviewers
+
+# Path-specific owners  🔧 CUSTOMIZE FOR REAL FIRM
+/src/payments/**      @org/payments-team
+/infra/**             @org/release-managers
+/.github/**           @org/release-managers
