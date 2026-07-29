@@ -1,0 +1,44 @@
+name: deploy
+on:
+  push:
+    branches: [main]
+
+# DEV + QA deploy automatically on merge to trunk.
+# PreProd + Prod pause for required-reviewer approval (set on the
+# environments in GitHub: Settings → Environments → protection rules).
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with: { creds: ${{ secrets.AZURE_CREDENTIALS }} }
+      - run: echo "deploy to DEV"   # 🔧 real deploy step (az webapp deploy, aks, etc.)
+
+  deploy-qa:
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    environment: qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with: { creds: ${{ secrets.AZURE_CREDENTIALS }} }
+      - run: echo "deploy to QA"
+
+  deploy-preprod:
+    runs-on: ubuntu-latest
+    needs: deploy-qa
+    environment: preprod   # ← required-reviewer gate fires here; job pauses for approval
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "deploy to PREPROD"
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: deploy-preprod
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "deploy to PROD"
