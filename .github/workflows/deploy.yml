@@ -3,42 +3,65 @@ on:
   push:
     branches: [main]
 
-# DEV + QA deploy automatically on merge to trunk.
-# PreProd + Prod pause for required-reviewer approval (set on the
-# environments in GitHub: Settings → Environments → protection rules).
+# Builds the image ONCE and deploys DEV (automatic) + QA (gated approval).
+# PreProd and Prod are NOT here — they are triggered by a published release,
+# see release-deploy.yml. Do not chain them to a merge.
+
+# Superseded runs are cancelled so only the latest awaits QA approval.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+# Azure auth uses a stored service-principal secret (AZURE_CREDENTIALS), scoped per
+# environment. OIDC / workload identity federation is a recommended follow-up — no
+# stored secret, and federated credentials can be scoped to a GitHub environment so
+# Azure itself refuses a prod login from a non-prod job. See runbook 2.2a.
 
 jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      sha_tag: ${{ steps.meta.outputs.sha_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        run: echo "sha_tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - id: push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.sha_tag }}
+            ghcr.io/${{ github.repository }}:main
+
+  # Deploy by DIGEST, not by tag — a tag can be moved, a digest cannot.
   deploy-dev:
+    needs: build-image
     runs-on: ubuntu-latest
     environment: dev
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with: { creds: ${{ secrets.AZURE_CREDENTIALS }} }
-      - run: echo "deploy to DEV"   # 🔧 real deploy step (az webapp deploy, aks, etc.)
+      - run: |
+          echo "deploy ghcr.io/${{ github.repository }}@${{ needs.build-image.outputs.digest }} to DEV"
+          # 🔧 az webapp config container set / az containerapp update
 
   deploy-qa:
+    needs: [build-image, deploy-dev]
     runs-on: ubuntu-latest
-    needs: deploy-dev
-    environment: qa
+    environment: qa               # ← required reviewers; job waits to start
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with: { creds: ${{ secrets.AZURE_CREDENTIALS }} }
-      - run: echo "deploy to QA"
-
-  deploy-preprod:
-    runs-on: ubuntu-latest
-    needs: deploy-qa
-    environment: preprod   # ← required-reviewer gate fires here; job pauses for approval
-    steps:
-      - uses: actions/checkout@v4
-      - run: echo "deploy to PREPROD"
-
-  deploy-prod:
-    runs-on: ubuntu-latest
-    needs: deploy-preprod
-    environment: prod
-    steps:
-      - uses: actions/checkout@v4
-      - run: echo "deploy to PROD"
+      - run: |
+          echo "deploy ghcr.io/${{ github.repository }}@${{ needs.build-image.outputs.digest }} to QA"
+          # 🔧

@@ -1,0 +1,52 @@
+name: release-please
+# Watches main for Conventional Commits, maintains a release PR, and on merging
+# that PR creates the tag, GitHub Release, and CHANGELOG entry.
+#
+# The GitHub App token is REQUIRED, not optional:
+#   1. Events from the default GITHUB_TOKEN do not trigger other workflows, so a
+#      release created with it would never fire release-deploy.yml.
+#   2. A PR opened with GITHUB_TOKEN has its checks held behind an
+#      "Approve workflows to run" banner, so the release PR could not merge.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  # `issues: write` is NOT needed — release-please's autorelease:* labels are PR
+  # labels, which fall under the pull-requests permission.
+
+# Serialise release-please runs. cancel-in-progress is false on purpose: a run
+# may be mid-way through creating a tag or release, and cancelling that leaves
+# a half-finished release.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    # Downstream workflows read these; keep them exposed if the config changes.
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          # Client ID, not the numeric App ID — `app-id` is deprecated.
+          client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          # 🔧 Confirm against the existing working setup. Two options:
+          #   a) inline, fine for a single package:
+          release-type: simple
+          #   b) manifest mode — config checked into the repo, easier to extend:
+          # config-file: release-please-config.json
+          # manifest-file: .release-please-manifest.json
